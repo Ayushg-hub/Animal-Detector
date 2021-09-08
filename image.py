@@ -1,5 +1,5 @@
 import tensorflow as tf
-from utils import class_names, output_boxes, draw_outputs
+from Class_Names import class_names
 import cv2
 import numpy as np
 from YOLO import YOLOv3Net
@@ -29,15 +29,54 @@ def main():
     resized_frame = tf.image.resize(image, (model_size[0],model_size[1]))
 
     pred = model.predict(resized_frame)
-    boxes, scores, classes, nums = output_boxes( \
-        pred, model_size,
-        max_output_size=max_output_size,
-        max_output_size_per_class=max_output_size_per_class,
-        iou_threshold=iou_threshold,
-        confidence_threshold=confidence_threshold)
+
+    # extract the box dimensions
+    x, y, width, height, confidence, classes = pred[:, :, 0:1], pred[:, :, 1:2], pred[:, :, 2:3], pred[:, :, 3:4], pred[:, :,4:5], pred[:,:,5:]
+    scores = confidence * classes
+
+    # convert box - coords into a suitable format for non-max-suppression
+    top_l_x = x - width / 2
+    bottom_r_x = x + width / 2
+    top_l_y = y - width / 2
+    bottom_r_y = y + width / 2
+
+    # pack them again in one list
+    boxes = tf.concat([top_l_x, top_l_y, bottom_r_x, bottom_r_y], axis=-1)
+
+    # change their dimensions for NMS by tf
+    batch_size = boxes.shape[0]
+    num_boxes = boxes.shape[1]
+    q = 1
+    boxes = boxes / model_size[0]
+    boxes = tf.reshape(boxes, (batch_size, num_boxes, q, 4))
+    scores = tf.reshape(scores, (batch_size, num_boxes, num_classes))
+
+    # now apply non max suppression
+    boxes, scores, classes, valid_detections = tf.image.combined_non_max_suppression(boxes=boxes,
+                                                                                     scores=scores,
+                                                                                     max_output_size_per_class=max_output_size_per_class,
+                                                                                     max_total_size=max_output_size,
+                                                                                     iou_threshold=iou_threshold,
+                                                                                     score_threshold=confidence_threshold)
 
     image = np.squeeze(image)
-    img = draw_outputs(image, boxes, scores, classes, nums, class_names)
+
+    # draw boxes
+    for i in range(valid_detections[0]):
+        # imd dim are heightXwidth
+        x1_y1 = tuple((int(boxes[0, i, 0:1] * image.shape[1]), int(boxes[0, i, 1:2] * (image.shape[0]))))
+        x2_y2 = tuple((int(boxes[0, i, 2:3] * image.shape[1]), int(boxes[0, i, 3:4] * (image.shape[0]))))
+
+        img = cv2.rectangle(image, x1_y1, x2_y2, (0, 255, 0), 2)
+
+        img = cv2.putText(img,
+                            "{} {:.4f}".format(class_names[int(classes[0, i])], scores[0, i]),
+                            (x1_y1),
+                            cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                            fontScale=1,
+                            color=(0, 0, 255),
+                            thickness=2)
+
     win_name = 'Image detection'
 
     cv2.imshow(win_name, img)

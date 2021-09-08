@@ -212,6 +212,7 @@ def YOLOv3Net(model_size):
 
     anchors = [[10,13],  [16,30],  [33,23],  [30,61],  [62,45],  [59,119],  [116,90],  [156,198],  [373,326]]
 
+    # output number 1
     out_pred = process_box(X,input_image,anchors[6:]) #layer 82
 
     #routing to layer -4

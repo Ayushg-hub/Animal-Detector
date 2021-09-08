@@ -40,8 +40,8 @@ def load_weights(model,cfgfile,weightfile):
     assert len(fp.read()) == 0, 'failed to read all data'
     fp.close()
 def main():
-    weightfile = "yolov3.weights"
-    cfgfile = "yolov3.cfg"
+    weightfile = "weights/yolov3.weights"
+    cfgfile = "weights/yolov3.cfg"
     model_size = (416, 416, 3)
     num_classes = 80
     model=YOLOv3Net(model_size)
